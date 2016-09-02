@@ -5,15 +5,17 @@
 TCHAR szClassName[] = TEXT("Window");
 #define NumberSize 9
 #define MatrixSize (NumberSize * NumberSize)
+#define nSpan 32
+#define nTop 50
 
 class Number
 {
 	int number;
 	BOOL fixed;
 public:
-	Number() { number = 0; fixed = FALSE; }
-	BOOL IsHint() { return fixed; }
-	operator int() { return number; }
+	Number() : number(0), fixed(FALSE) {}
+	BOOL IsHint() const { return fixed; }
+	operator int() const { return number; }
 	int operator=(int n) { number = n; return number; }
 	void SetHint(int n) { number = n; fixed = TRUE; }
 };
@@ -57,7 +59,7 @@ BOOL NumberArray::tryPlace(int n)
 void NumberArray::getTryNumber(int tryNum[], int n)
 {
 	int tmpnum[NumberSize];
-	int offset[] = {
+	const int offset[] = {
 		1, 1, NumberSize - 2,
 		1, 1, NumberSize - 2,
 		1, 1, NumberSize - 2
@@ -101,14 +103,16 @@ void NumberArray::getTryNumber(int tryNum[], int n)
 	tryNum[j] = 0;
 }
 
-static NumberArray numbers;
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	static HWND hButton;
+	static NumberArray numbers;
 	switch (msg)
 	{
 	case WM_CREATE:
-		hButton = CreateWindow(TEXT("BUTTON"), TEXT("解く"), WS_VISIBLE | WS_CHILD, 0, 0, 0, 0, hWnd, (HMENU)IDOK, ((LPCREATESTRUCT)lParam)->hInstance, 0);
+		hButton = CreateWindow(TEXT("BUTTON"), TEXT("解く"),
+			WS_VISIBLE | WS_CHILD, 0, 0, 0, 0, hWnd, (HMENU)IDOK,
+			((LPCREATESTRUCT)lParam)->hInstance, 0);
 		{
 			const int table[] = {
 				7,0,0,0,5,0,3,0,0,
@@ -131,7 +135,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	case WM_PAINT:
 		{
 			PAINTSTRUCT ps;
-			HDC hdc = BeginPaint(hWnd, &ps);
+			const HDC hdc = BeginPaint(hWnd, &ps);
+
+			for (int i = 0; i <= NumberSize; i++)
+			{
+				MoveToEx(hdc, 0, nSpan * i + nTop, 0);
+				LineTo(hdc, nSpan * NumberSize, nSpan * i + 50);
+				MoveToEx(hdc, nSpan * i, 0 + nTop, 0);
+				LineTo(hdc, nSpan * i, nSpan * NumberSize + 50);
+			}
 
 			TCHAR szText[1024];
 			for (int x = 0; x < NumberSize; x++)
@@ -140,7 +152,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 				{
 					const int nNumber = (int)(*numbers[y*NumberSize + x%NumberSize]);
 					wsprintf(szText, TEXT("%d"), nNumber);
-					TextOut(hdc, x * 32, y * 32 + 50, szText, lstrlen(szText));
+					TextOut(hdc, x * nSpan + 12, y * nSpan + nTop + 8, szText, lstrlen(szText));
 				}
 			}
 
@@ -148,7 +160,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		}
 		break;
 	case WM_SIZE:
-		MoveWindow(hButton, 10, 10, 256, 32, TRUE);
+		MoveWindow(hButton, 10, 10, nSpan * NumberSize - 20, 32, TRUE);
 		break;
 	case WM_COMMAND:
 		if (LOWORD(wParam) == IDOK)
@@ -173,7 +185,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPreInst, LPSTR pCmdLine, int nCmdShow)
 {
 	MSG msg;
-	WNDCLASS wndclass = {
+	const WNDCLASS wndclass = {
 		CS_HREDRAW | CS_VREDRAW,
 		WndProc,
 		0,
@@ -186,14 +198,19 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPreInst, LPSTR pCmdLine, int 
 		szClassName
 	};
 	RegisterClass(&wndclass);
-	HWND hWnd = CreateWindow(
+	RECT rect = { 0, 0,
+		nSpan * NumberSize + 1,
+		nSpan * NumberSize + nTop + 1 };
+	const DWORD dwStyle = WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+	AdjustWindowRect(&rect, dwStyle, FALSE);
+	const HWND hWnd = CreateWindow(
 		szClassName,
 		TEXT("数独を解く"),
-		WS_OVERLAPPEDWINDOW,
+		dwStyle,
 		CW_USEDEFAULT,
 		0,
-		CW_USEDEFAULT,
-		0,
+		rect.right - rect.left,
+		rect.bottom - rect.top,
 		0,
 		0,
 		hInstance,

@@ -1,6 +1,7 @@
 ﻿#pragma comment(linker,"\"/manifestdependency:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
 #include <windows.h>
+#include <windowsx.h>
 
 TCHAR szClassName[] = TEXT("Window");
 #define NumberSize 9
@@ -17,7 +18,7 @@ public:
 	BOOL IsHint() const { return fixed; }
 	operator int() const { return number; }
 	int operator=(int n) { number = n; return number; }
-	void SetHint(int n) { number = n; fixed = TRUE; }
+	void SetHint(int n) { number = n; fixed = n ? TRUE : FALSE; }
 };
 
 class NumberArray
@@ -107,6 +108,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	static HWND hButton;
 	static NumberArray numbers;
+	static int nCurrentIndex;
 	switch (msg)
 	{
 	case WM_CREATE:
@@ -132,12 +134,38 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			}
 		}
 		break;
+	case WM_LBUTTONDOWN:
+	case WM_RBUTTONDOWN:
+		{
+			const int nX = GET_X_LPARAM(lParam);
+			const int nY = GET_Y_LPARAM(lParam);
+			nCurrentIndex = nX / nSpan + ((nY - nTop) / nSpan) * NumberSize;
+			HMENU hMyMenu = CreatePopupMenu();
+			AppendMenu(hMyMenu, MF_ENABLED | MF_STRING, 100, TEXT("空白"));
+			for (int i = 1; i < 10; ++i)
+			{
+				TCHAR szNumber[2] = { 0 };
+				wsprintf(szNumber, TEXT("%d"), i);
+				AppendMenu(hMyMenu, MF_ENABLED | MF_STRING, 100 + i, szNumber);
+			}
+			AppendMenu(hMyMenu, MF_SEPARATOR, 0, 0);
+			AppendMenu(hMyMenu, MF_ENABLED | MF_STRING, 110, TEXT("全部クリア"));
+
+			POINT point = { nX,nY };
+			ClientToScreen(hWnd, &point);
+
+			TrackPopupMenu(hMyMenu, TPM_LEFTALIGN, point.x, point.y, 0, hWnd, NULL);
+
+			//DeleteMenu()
+			DestroyMenu(hMyMenu);
+		}
+		break;
 	case WM_PAINT:
 		{
 			PAINTSTRUCT ps;
 			const HDC hdc = BeginPaint(hWnd, &ps);
 
-			for (int i = 0; i <= NumberSize; i++)
+			for (int i = 0; i <= NumberSize; ++i)
 			{
 				MoveToEx(hdc, 0, nSpan * i + nTop, 0);
 				LineTo(hdc, nSpan * NumberSize, nSpan * i + 50);
@@ -151,6 +179,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 				for (int y = 0; y < NumberSize; y++)
 				{
 					const int nNumber = (int)(*numbers[y*NumberSize + x%NumberSize]);
+					if (!nNumber) continue;
 					wsprintf(szText, TEXT("%d"), nNumber);
 					TextOut(hdc, x * nSpan + 12, y * nSpan + nTop + 8, szText, lstrlen(szText));
 				}
@@ -171,6 +200,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 				MessageBox(hWnd, TEXT("解が得られました"), TEXT("確認"), 0);
 			else
 				MessageBox(hWnd, TEXT("解が得られませんでした"), TEXT("確認"), 0);
+		}
+		else if (LOWORD(wParam) >= 100 && LOWORD(wParam) <= 109)
+		{
+			(numbers[nCurrentIndex])->SetHint(LOWORD(wParam) - 100);
+			InvalidateRect(hWnd, 0, 1);
+		}
+		else if (LOWORD(wParam) == 110)
+		{
+			for (int i = 0; i < MatrixSize; i++)
+			{
+				(numbers[i])->SetHint(0);
+			}
+			InvalidateRect(hWnd, 0, 1);
 		}
 		break;
 	case WM_DESTROY:
